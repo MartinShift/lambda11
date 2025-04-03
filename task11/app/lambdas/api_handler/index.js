@@ -120,6 +120,17 @@ async function signup(body) {
         return formatResponse(500, { message: 'Error in signup', error: error.message });
     }
 }
+function formatResponse(statusCode, body) {
+    return {
+        statusCode: statusCode,
+        headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Credentials': true,
+        },
+        body: JSON.stringify(body)
+    };
+}
 
 async function signin(body) {
     const { email, password } = body;

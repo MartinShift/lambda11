@@ -1,8 +1,11 @@
-const AWS = require('aws-sdk');
-const uuid = require('uuid');
+const { CognitoIdentityProviderClient, AdminCreateUserCommand, AdminSetUserPasswordCommand, InitiateAuthCommand } = require("@aws-sdk/client-cognito-identity-provider");
+const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
+const { DynamoDBDocumentClient, PutCommand, GetCommand, ScanCommand } = require("@aws-sdk/lib-dynamodb");
+const { v4: uuidv4 } = require('uuid');
 
-const cognito = new AWS.CognitoIdentityServiceProvider();
-const dynamodb = new AWS.DynamoDB.DocumentClient();
+const cognito = new CognitoIdentityProviderClient();
+const dynamoClient = new DynamoDBClient();
+const dynamodb = DynamoDBDocumentClient.from(dynamoClient);
 
 const USER_POOL_ID = process.env.cup_id;
 const CLIENT_ID = process.env.cup_client_id;
@@ -89,7 +92,7 @@ async function signup(body) {
     };
 
     try {
-        await cognito.adminCreateUser(params).promise();
+        await cognito.send(new AdminCreateUserCommand(params));
         await cognito.adminSetUserPassword({
             UserPoolId: USER_POOL_ID,
             Username: email,
@@ -130,7 +133,7 @@ async function getTables(headers) {
     }
 
     try {
-        const result = await dynamodb.scan({ TableName: TABLES_TABLE }).promise();
+        const result = await dynamodb.send(new ScanCommand({ TableName: TABLES_TABLE }));
         return { statusCode: 200, body: JSON.stringify({ tables: result.Items }) };
     } catch (error) {
         console.error('Error getting tables:', error);

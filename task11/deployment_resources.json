@@ -32,15 +32,6 @@
     },
     "resource_type": "iam_policy"
   },
-  "api_handler-role": {
-    "predefined_policies": [],
-    "principal_service": "lambda",
-    "custom_policies": [
-      "lambda-basic-execution"
-    ],
-    "resource_type": "iam_role",
-    "tags": {}
-  },
   "${booking_userpool}": {
     "resource_type": "cognito_idp",
     "password_policy": {

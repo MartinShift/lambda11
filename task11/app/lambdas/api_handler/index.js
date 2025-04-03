@@ -251,13 +251,10 @@ async function createReservation(body, headers) {
     }
 
     // Check if the table exists
-
-    const tableCommand = new GetCommand({ TableName: TABLES_TABLE, Key: { id: body.tableNumber } });
-    const tableResult = await dynamodb.send(tableCommand);
-    if (!tableResult.Item) {
+    const result = await getTable(body.tableNumber, headers);
+    if (result.statusCode !== 200) {
         return formatResponse(404, { message: 'Table not found' });
     }
-    
 
     const reservationItem = {
         id: uuidv4(),

@@ -192,22 +192,33 @@ async function createTable(body, headers) {
         return formatResponse(401, { message: 'Unauthorized' });
     }
 
-    const tableItem = {
-        id: uuidv4(),
-        number: body.number,
-        places: body.places,
-        isVip: body.isVip,
-        minOrder: body.minOrder || 0
-    };
-
     try {
+        const id = await getNextId(TABLES_TABLE);
+        const tableItem = {
+            id: id,
+            number: body.number,
+            places: body.places,
+            isVip: body.isVip,
+            minOrder: body.minOrder || 0
+        };
+
         const command = new PutCommand({ TableName: TABLES_TABLE, Item: tableItem });
         await dynamodb.send(command);
-        return formatResponse(200, { id: tableItem.id });
+        return formatResponse(200, { id: id });
     } catch (error) {
         console.error('Error creating table:', error);
         return formatResponse(500, { message: 'Error creating table', error: error.message });
     }
+}
+
+async function getNextId(tableName) {
+    const command = new ScanCommand({
+        TableName: tableName,
+        ProjectionExpression: "id"
+    });
+    const result = await dynamodb.send(command);
+    const ids = result.Items.map(item => Number(item.id)).filter(id => !isNaN(id));
+    return ids.length > 0 ? Math.max(...ids) + 1 : 1;
 }
 
 async function getTable(tableId, headers) {

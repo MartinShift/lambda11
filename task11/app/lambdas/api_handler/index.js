@@ -74,10 +74,19 @@ exports.handler = async (event) => {
 };
 
 async function signup(body) {
+    console.log('Signup body:', JSON.stringify(body));
     const { firstName, lastName, email, password } = body;
 
-    if (!isValidEmail(email) || !isValidPassword(password)) {
-        return { statusCode: 400, body: JSON.stringify({ message: 'Invalid email or password format' }) };
+    if (!firstName || !lastName) {
+        return formatResponse(400, { message: 'First name and last name are required' });
+    }
+
+    if (!isValidEmail(email)) {
+        return formatResponse(400, { message: 'Invalid email format' });
+    }
+
+    if (!isValidPassword(password)) {
+        return formatResponse(400, { message: 'Invalid password format. Password must be at least 12 characters long and include alphanumeric characters and any of "$%^*-_"' });
     }
 
     const params = {
@@ -93,16 +102,22 @@ async function signup(body) {
 
     try {
         await cognito.send(new AdminCreateUserCommand(params));
-        await cognito.adminSetUserPassword({
+        
+        await cognito.send(new AdminSetUserPasswordCommand({
             UserPoolId: USER_POOL_ID,
             Username: email,
             Password: password,
             Permanent: true
-        }).promise();
-        return { statusCode: 200, body: JSON.stringify({ message: 'User created successfully' }) };
+        }));
+        
+        console.log('User created successfully');
+        return formatResponse(200, { message: 'User created successfully' });
     } catch (error) {
         console.error('Error in signup:', error);
-        return { statusCode: 400, body: JSON.stringify({ message: 'Error in signup', error: error.message }) };
+        if (error.name === 'UsernameExistsException') {
+            return formatResponse(400, { message: 'An account with this email already exists' });
+        }
+        return formatResponse(500, { message: 'Error in signup', error: error.message });
     }
 }
 
@@ -230,11 +245,14 @@ function verifyToken(headers) {
 }
 
 function isValidEmail(email) {
-    const emailRegex = /(.+)@(.+){2,}\.(.+){2,}/;
-    return emailRegex.test(email);
+    // Simple check for the presence of @ and .
+    return email.includes('@') && email.includes('.');
 }
 
 function isValidPassword(password) {
-    const passwordRegex = /^(?=.*[a-zA-Z])(?=.*\d)(?=.*[$%^*\-_])[A-Za-z\d$%^*\-_]{12,}$/;
-    return passwordRegex.test(password);
+    // At least 12 characters long, contains alphanumeric and any of "$%^*-_"
+    return password.length >= 12 && 
+           /[a-zA-Z]/.test(password) && 
+           /\d/.test(password) && 
+           /[$%^*\-_]/.test(password);
 }

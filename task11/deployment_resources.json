@@ -1,0 +1,115 @@
+{
+  "lambda-basic-execution": {
+    "policy_content": {
+      "Statement": [
+        {
+          "Action": [
+            "logs:CreateLogGroup",
+            "logs:CreateLogStream",
+            "logs:PutLogEvents",
+            "dynamodb:GetItem",
+            "dynamodb:Query",
+            "dynamodb:PutItem",
+            "dynamodb:Batch*",
+            "dynamodb:DeleteItem",
+            "ssm:PutParameter",
+            "ssm:GetParameter",
+            "kms:Decrypt"
+          ],
+          "Effect": "Allow",
+          "Resource": "*"
+        }
+      ],
+      "Version": "2012-10-17"
+    },
+    "resource_type": "iam_policy",
+    "tags": {}
+  },
+  "simple-booking-userpool": {
+    "resource_type": "cognito_idp",
+    "password_policy": {
+      "minimum_length": 8,
+      "require_uppercase": true,
+      "require_symbols": true,
+      "require_lowercase": true,
+      "require_numbers": true
+    },
+    "auto_verified_attributes": [],
+    "sms_configuration": {},
+    "username_attributes": [],
+    "custom_attributes": [],
+    "client": {},
+    "tags": {}
+  },
+  "Tables": {
+    "resource_type": "dynamodb_table",
+    "hash_key_name": "id",
+    "hash_key_type": "N",
+    "read_capacity": 1,
+    "write_capacity": 1,
+    "global_indexes": [],
+    "autoscaling": [],
+    "tags": {}
+  },
+  "Reservations": {
+    "resource_type": "dynamodb_table",
+    "hash_key_name": "reservationId",
+    "hash_key_type": "S",
+    "read_capacity": 1,
+    "write_capacity": 1,
+    "global_indexes": [],
+    "autoscaling": [],
+    "tags": {}
+  },
+  "task11_api": {
+    "resource_type": "api_gateway",
+    "deploy_stage": "api",
+    "dependencies": [],
+    "resources": {
+      "/signup": {
+        "POST": {
+          "integration_type": "lambda",
+          "lambda_name": "SignupLambda"
+        }
+      },
+      "/signin": {
+        "POST": {
+          "integration_type": "lambda",
+          "lambda_name": "SigninLambda"
+        }
+      },
+      "/tables": {
+        "GET": {
+          "integration_type": "lambda",
+          "lambda_name": "GetTablesLambda",
+          "authorization_type": "COGNITO_USER_POOLS"
+        },
+        "POST": {
+          "integration_type": "lambda",
+          "lambda_name": "CreateTableLambda",
+          "authorization_type": "COGNITO_USER_POOLS"
+        }
+      },
+      "/tables/{tableId}": {
+        "GET": {
+          "integration_type": "lambda",
+          "lambda_name": "GetTableLambda",
+          "authorization_type": "COGNITO_USER_POOLS"
+        }
+      },
+      "/reservations": {
+        "POST": {
+          "integration_type": "lambda",
+          "lambda_name": "CreateReservationLambda",
+          "authorization_type": "COGNITO_USER_POOLS"
+        },
+        "GET": {
+          "integration_type": "lambda",
+          "lambda_name": "GetReservationsLambda",
+          "authorization_type": "COGNITO_USER_POOLS"
+        }
+      }
+    },
+    "tags": {}
+  }
+}

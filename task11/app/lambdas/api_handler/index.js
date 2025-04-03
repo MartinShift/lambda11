@@ -193,7 +193,7 @@ async function createTable(body, headers) {
     }
 
     try {
-        const id = await getNextId(TABLES_TABLE);
+        const id = body.id || await getNextId(TABLES_TABLE);
         const tableItem = {
             id: id,
             number: body.number,

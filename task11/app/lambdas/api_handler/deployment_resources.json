@@ -1,5 +1,5 @@
 {
-  "CreateReservationLambda-role": {
+  "api_handler-role": {
     "predefined_policies": [],
     "principal_service": "lambda",
     "custom_policies": [

@@ -1,5 +1,5 @@
 {
-  "name": "SigninLambda",
+  "name": "api_handler",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
@@ -7,7 +7,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "aws-sdk": "^2.1386.0",
+    "aws-sdk": "^2.1001.0",
     "uuid": "^8.3.2"
   }
 }

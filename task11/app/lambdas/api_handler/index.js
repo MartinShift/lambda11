@@ -230,7 +230,7 @@ function verifyToken(headers) {
 }
 
 function isValidEmail(email) {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const emailRegex = /(.+)@(.+){2,}\.(.+){2,}/;
     return emailRegex.test(email);
 }
 

@@ -227,7 +227,7 @@ async function getTable(tableId, headers) {
     }
 
     try {
-        const command = new GetCommand({ TableName: TABLES_TABLE, Key: { id: tableId } });
+        const command = new GetCommand({ TableName: TABLES_TABLE, Key: { id: Number(tableId) } });
         const result = await dynamodb.send(command);
         if (result.Item) {
             return formatResponse(200, result.Item);
@@ -245,14 +245,52 @@ async function createReservation(body, headers) {
         return formatResponse(401, { message: 'Unauthorized' });
     }
 
+    const { tableNumber, clientName, phoneNumber, date, slotTimeStart, slotTimeEnd } = body;
+
+    // Check if the table exists
+    try {
+        const tableCommand = new GetCommand({ TableName: TABLES_TABLE, Key: { id: Number(tableNumber) } });
+        const tableResult = await dynamodb.send(tableCommand);
+        if (!tableResult.Item) {
+            return formatResponse(400, { message: 'Table does not exist' });
+        }
+    } catch (error) {
+        console.error('Error checking table existence:', error);
+        return formatResponse(500, { message: 'Error checking table existence', error: error.message });
+    }
+
+    // Check for overlapping reservations
+    try {
+        const scanCommand = new ScanCommand({
+            TableName: RESERVATIONS_TABLE,
+            FilterExpression: 'tableNumber = :tableNumber AND #date = :date AND ((slotTimeStart <= :end AND slotTimeEnd > :start) OR (slotTimeStart < :end AND slotTimeEnd >= :start))',
+            ExpressionAttributeNames: {
+                '#date': 'date'
+            },
+            ExpressionAttributeValues: {
+                ':tableNumber': tableNumber,
+                ':date': date,
+                ':start': slotTimeStart,
+                ':end': slotTimeEnd
+            }
+        });
+        const scanResult = await dynamodb.send(scanCommand);
+        if (scanResult.Items && scanResult.Items.length > 0) {
+            return formatResponse(400, { message: 'Reservation overlaps with an existing reservation' });
+        }
+    } catch (error) {
+        console.error('Error checking reservation overlap:', error);
+        return formatResponse(500, { message: 'Error checking reservation overlap', error: error.message });
+    }
+
     const reservationItem = {
         id: uuidv4(),
-        tableNumber: body.tableNumber,
-        clientName: body.clientName,
-        phoneNumber: body.phoneNumber,
-        date: body.date,
-        slotTimeStart: body.slotTimeStart,
-        slotTimeEnd: body.slotTimeEnd
+        tableNumber,
+        clientName,
+        phoneNumber,
+        date,
+        slotTimeStart,
+        slotTimeEnd
     };
 
     try {

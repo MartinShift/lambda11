@@ -246,6 +246,19 @@ async function createReservation(body, headers) {
         return formatResponse(401, { message: 'Unauthorized' });
     }
 
+    if(!body.tableNumber || !body.clientName || !body.phoneNumber || !body.date || !body.slotTimeStart || !body.slotTimeEnd) {
+        return formatResponse(400, { message: 'All fields are required' });
+    }
+
+    // Check if the table exists
+
+    const tableCommand = new GetCommand({ TableName: TABLES_TABLE, Key: { id: body.tableNumber } });
+    const tableResult = await dynamodb.send(tableCommand);
+    if (!tableResult.Item) {
+        return formatResponse(404, { message: 'Table not found' });
+    }
+    
+
     const reservationItem = {
         id: uuidv4(),
         tableNumber: body.tableNumber,

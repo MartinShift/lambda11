@@ -163,35 +163,37 @@ async function signin(body) {
     };
 
     try {
-        const result = await cognito.initiateAuth(params).promise();
-        return { statusCode: 200, body: JSON.stringify({ idToken: result.AuthenticationResult.IdToken }) };
+        const command = new InitiateAuthCommand(params);
+        const result = await cognito.send(command);
+        return formatResponse(200, { idToken: result.AuthenticationResult.IdToken });
     } catch (error) {
         console.error('Error in signin:', error);
-        return { statusCode: 400, body: JSON.stringify({ message: 'Error in signin', error: error.message }) };
+        return formatResponse(400, { message: 'Error in signin', error: error.message });
     }
 }
 
 async function getTables(headers) {
     if (!verifyToken(headers)) {
-        return { statusCode: 401, body: JSON.stringify({ message: 'Unauthorized' }) };
+        return formatResponse(401, { message: 'Unauthorized' });
     }
 
     try {
-        const result = await dynamodb.send(new ScanCommand({ TableName: TABLES_TABLE }));
-        return { statusCode: 200, body: JSON.stringify({ tables: result.Items }) };
+        const command = new ScanCommand({ TableName: TABLES_TABLE });
+        const result = await dynamodb.send(command);
+        return formatResponse(200, { tables: result.Items });
     } catch (error) {
         console.error('Error getting tables:', error);
-        return { statusCode: 500, body: JSON.stringify({ message: 'Error getting tables', error: error.message }) };
+        return formatResponse(500, { message: 'Error getting tables', error: error.message });
     }
 }
 
 async function createTable(body, headers) {
     if (!verifyToken(headers)) {
-        return { statusCode: 401, body: JSON.stringify({ message: 'Unauthorized' }) };
+        return formatResponse(401, { message: 'Unauthorized' });
     }
 
     const tableItem = {
-        id: uuid.v4(),
+        id: uuidv4(),
         number: body.number,
         places: body.places,
         isVip: body.isVip,
@@ -199,39 +201,41 @@ async function createTable(body, headers) {
     };
 
     try {
-        await dynamodb.put({ TableName: TABLES_TABLE, Item: tableItem }).promise();
-        return { statusCode: 200, body: JSON.stringify({ id: tableItem.id }) };
+        const command = new PutCommand({ TableName: TABLES_TABLE, Item: tableItem });
+        await dynamodb.send(command);
+        return formatResponse(200, { id: tableItem.id });
     } catch (error) {
         console.error('Error creating table:', error);
-        return { statusCode: 500, body: JSON.stringify({ message: 'Error creating table', error: error.message }) };
+        return formatResponse(500, { message: 'Error creating table', error: error.message });
     }
 }
 
 async function getTable(tableId, headers) {
     if (!verifyToken(headers)) {
-        return { statusCode: 401, body: JSON.stringify({ message: 'Unauthorized' }) };
+        return formatResponse(401, { message: 'Unauthorized' });
     }
 
     try {
-        const result = await dynamodb.get({ TableName: TABLES_TABLE, Key: { id: tableId } }).promise();
+        const command = new GetCommand({ TableName: TABLES_TABLE, Key: { id: tableId } });
+        const result = await dynamodb.send(command);
         if (result.Item) {
-            return { statusCode: 200, body: JSON.stringify(result.Item) };
+            return formatResponse(200, result.Item);
         } else {
-            return { statusCode: 404, body: JSON.stringify({ message: 'Table not found' }) };
+            return formatResponse(404, { message: 'Table not found' });
         }
     } catch (error) {
         console.error('Error getting table:', error);
-        return { statusCode: 500, body: JSON.stringify({ message: 'Error getting table', error: error.message }) };
+        return formatResponse(500, { message: 'Error getting table', error: error.message });
     }
 }
 
 async function createReservation(body, headers) {
     if (!verifyToken(headers)) {
-        return { statusCode: 401, body: JSON.stringify({ message: 'Unauthorized' }) };
+        return formatResponse(401, { message: 'Unauthorized' });
     }
 
     const reservationItem = {
-        id: uuid.v4(),
+        id: uuidv4(),
         tableNumber: body.tableNumber,
         clientName: body.clientName,
         phoneNumber: body.phoneNumber,
@@ -241,25 +245,27 @@ async function createReservation(body, headers) {
     };
 
     try {
-        await dynamodb.put({ TableName: RESERVATIONS_TABLE, Item: reservationItem }).promise();
-        return { statusCode: 200, body: JSON.stringify({ reservationId: reservationItem.id }) };
+        const command = new PutCommand({ TableName: RESERVATIONS_TABLE, Item: reservationItem });
+        await dynamodb.send(command);
+        return formatResponse(200, { reservationId: reservationItem.id });
     } catch (error) {
         console.error('Error creating reservation:', error);
-        return { statusCode: 500, body: JSON.stringify({ message: 'Error creating reservation', error: error.message }) };
+        return formatResponse(500, { message: 'Error creating reservation', error: error.message });
     }
 }
 
 async function getReservations(headers) {
     if (!verifyToken(headers)) {
-        return { statusCode: 401, body: JSON.stringify({ message: 'Unauthorized' }) };
+        return formatResponse(401, { message: 'Unauthorized' });
     }
 
     try {
-        const result = await dynamodb.scan({ TableName: RESERVATIONS_TABLE }).promise();
-        return { statusCode: 200, body: JSON.stringify({ reservations: result.Items }) };
+        const command = new ScanCommand({ TableName: RESERVATIONS_TABLE });
+        const result = await dynamodb.send(command);
+        return formatResponse(200, { reservations: result.Items });
     } catch (error) {
         console.error('Error getting reservations:', error);
-        return { statusCode: 500, body: JSON.stringify({ message: 'Error getting reservations', error: error.message }) };
+        return formatResponse(500, { message: 'Error getting reservations', error: error.message });
     }
 }
 

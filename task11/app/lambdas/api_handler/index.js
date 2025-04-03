@@ -1,4 +1,10 @@
-const { CognitoIdentityProviderClient, AdminCreateUserCommand, AdminSetUserPasswordCommand, InitiateAuthCommand } = require("@aws-sdk/client-cognito-identity-provider");
+const { 
+    CognitoIdentityProviderClient, 
+    AdminCreateUserCommand, 
+    AdminSetUserPasswordCommand, 
+    InitiateAuthCommand,
+    AdminGetUserCommand
+} = require("@aws-sdk/client-cognito-identity-provider");
 const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
 const { DynamoDBDocumentClient, PutCommand, GetCommand, ScanCommand } = require("@aws-sdk/lib-dynamodb");
 const { v4: uuidv4 } = require('uuid');
@@ -101,8 +107,22 @@ async function signup(body) {
     };
 
     try {
+        // Check if user already exists
+        try {
+            await cognito.send(new AdminGetUserCommand({ UserPoolId: USER_POOL_ID, Username: email }));
+            // If the above doesn't throw an error, the user already exists
+            return formatResponse(400, { message: 'An account with this email already exists' });
+        } catch (error) {
+            // If UserNotFoundException is thrown, the user doesn't exist, so we can create it
+            if (error.name !== 'UserNotFoundException') {
+                throw error; // Re-throw if it's a different error
+            }
+        }
+
+        // Create the user
         await cognito.send(new AdminCreateUserCommand(params));
         
+        // Set the user's password
         await cognito.send(new AdminSetUserPasswordCommand({
             UserPoolId: USER_POOL_ID,
             Username: email,
@@ -114,12 +134,10 @@ async function signup(body) {
         return formatResponse(200, { message: 'User created successfully' });
     } catch (error) {
         console.error('Error in signup:', error);
-        if (error.name === 'UsernameExistsException') {
-            return formatResponse(400, { message: 'An account with this email already exists' });
-        }
         return formatResponse(500, { message: 'Error in signup', error: error.message });
     }
 }
+
 function formatResponse(statusCode, body) {
     return {
         statusCode: statusCode,

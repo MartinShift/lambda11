@@ -232,53 +232,57 @@ async function getTable(tableId, headers) {
 
 
 async function createReservation(body, headers) {
+    console.log('Creating reservation:', JSON.stringify(body));
     if (!verifyToken(headers)) {
         return formatResponse(401, { message: 'Unauthorized' });
     }
 
-    const { tableNumber, clientName, phoneNumber, date, slotTimeStart, slotTimeEnd } = body;
+    let { tableNumber, clientName, phoneNumber, date, slotTimeStart, slotTimeEnd } = body;
 
-    // Check if the table exists
-    try {
-        const tableCommand = new GetCommand({ TableName: TABLES_TABLE, Key: { id: Number(tableNumber) } });
-        const tableResult = await dynamodb.send(tableCommand);
-        if (!tableResult.Item) {
-            return formatResponse(400, { message: 'Table does not exist' });
+    // If tableNumber is not provided, find a free table
+    if (tableNumber === undefined) {
+        try {
+            tableNumber = await findFreeTable(date, slotTimeStart, slotTimeEnd);
+            if (!tableNumber) {
+                return formatResponse(400, { message: 'No free tables available for the specified time' });
+            }
+        } catch (error) {
+            console.error('Error finding free table:', error);
+            return formatResponse(500, { message: 'Error finding free table' });
         }
-    } catch (error) {
-        console.error('Error checking table existence:', error);
-        return formatResponse(500, { message: 'Error checking table existence', error: error.message });
+    } else {
+        // If tableNumber is provided, check if it exists
+        try {
+            const tableCommand = new GetCommand({
+                TableName: TABLES_TABLE,
+                Key: { id: tableNumber }
+            });
+            const tableResult = await dynamodb.send(tableCommand);
+            if (!tableResult.Item) {
+                return formatResponse(400, { message: 'Specified table does not exist' });
+            }
+        } catch (error) {
+            console.error('Error checking table existence:', error);
+            return formatResponse(500, { message: 'Error checking table existence' });
+        }
     }
 
     // Check for overlapping reservations
     try {
-        const scanCommand = new ScanCommand({
-            TableName: RESERVATIONS_TABLE,
-            FilterExpression: 'tableNumber = :tableNumber AND #date = :date AND ((slotTimeStart <= :end AND slotTimeEnd > :start) OR (slotTimeStart < :end AND slotTimeEnd >= :start))',
-            ExpressionAttributeNames: {
-                '#date': 'date'
-            },
-            ExpressionAttributeValues: {
-                ':tableNumber': Number(tableNumber),
-                ':date': date,
-                ':start': slotTimeStart,
-                ':end': slotTimeEnd
-            }
-        });
-        const scanResult = await dynamodb.send(scanCommand);
-        if (scanResult.Items && scanResult.Items.length > 0) {
+        const isOverlapping = await checkOverlappingReservations(tableNumber, date, slotTimeStart, slotTimeEnd);
+        if (isOverlapping) {
             return formatResponse(400, { message: 'Reservation overlaps with an existing reservation' });
         }
     } catch (error) {
         console.error('Error checking reservation overlap:', error);
-        return formatResponse(500, { message: 'Error checking reservation overlap', error: error.message });
+        return formatResponse(500, { message: 'Error checking reservation overlap' });
     }
 
     // Create the reservation
     const reservationId = uuidv4();
     const reservationItem = {
         id: reservationId,
-        tableNumber: Number(tableNumber),
+        tableNumber,
         clientName,
         phoneNumber,
         date,
@@ -287,13 +291,56 @@ async function createReservation(body, headers) {
     };
 
     try {
-        const command = new PutCommand({ TableName: RESERVATIONS_TABLE, Item: reservationItem });
+        const command = new PutCommand({
+            TableName: RESERVATIONS_TABLE,
+            Item: reservationItem
+        });
         await dynamodb.send(command);
-        return formatResponse(200, { reservationId: reservationId });
+        return formatResponse(200, { reservationId, tableNumber });
     } catch (error) {
         console.error('Error creating reservation:', error);
-        return formatResponse(500, { message: 'Error creating reservation', error: error.message });
+        return formatResponse(500, { message: 'Error creating reservation' });
     }
+}
+
+async function findFreeTable(date, slotTimeStart, slotTimeEnd) {
+    // Get all tables
+    const scanTablesCommand = new ScanCommand({ TableName: TABLES_TABLE });
+    const tablesResult = await dynamodb.send(scanTablesCommand);
+    const tables = tablesResult.Items;
+
+    // Check each table for availability
+    for (const table of tables) {
+        const isAvailable = await checkTableAvailability(table.id, date, slotTimeStart, slotTimeEnd);
+        if (isAvailable) {
+            return table.id;
+        }
+    }
+
+    return null; // No free table found
+}
+
+async function checkTableAvailability(tableNumber, date, slotTimeStart, slotTimeEnd) {
+    const overlapping = await checkOverlappingReservations(tableNumber, date, slotTimeStart, slotTimeEnd);
+    return !overlapping;
+}
+
+async function checkOverlappingReservations(tableNumber, date, slotTimeStart, slotTimeEnd) {
+    const scanCommand = new ScanCommand({
+        TableName: RESERVATIONS_TABLE,
+        FilterExpression: 'tableNumber = :tableNumber AND #date = :date AND ((slotTimeStart <= :end AND slotTimeEnd > :start) OR (slotTimeStart < :end AND slotTimeEnd >= :start))',
+        ExpressionAttributeNames: {
+            '#date': 'date'
+        },
+        ExpressionAttributeValues: {
+            ':tableNumber': tableNumber,
+            ':date': date,
+            ':start': slotTimeStart,
+            ':end': slotTimeEnd
+        }
+    });
+    const scanResult = await dynamodb.send(scanCommand);
+    return scanResult.Items && scanResult.Items.length > 0;
 }
 
 async function getReservations(headers) {

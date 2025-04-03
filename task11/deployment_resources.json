@@ -23,7 +23,14 @@
             "cognito-idp:ListUserPools",
             "cognito-idp:ListUserPoolClients",
             "cognito-idp:AdminRespondToAuthChallenge",
-            "cognito-idp:AdminConfirmSignUp"
+            "cognito-idp:AdminConfirmSignUp",
+            "cognito-idp:AdminDeleteUser",
+            "cognito-idp:AdminUpdateUserAttributes",
+            "cognito-idp:AdminGetUser",
+            "cognito-idp:AdminDisableUser",
+            "cognito-idp:AdminEnableUser",
+            "cognito-idp:AdminDeleteUserAttributes",
+            "cognito-idp:AdminAddUserToGroup"
           ],
           "Effect": "Allow",
           "Resource": "*"

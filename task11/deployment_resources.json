@@ -12,17 +12,12 @@
             "dynamodb:PutItem",
             "dynamodb:Batch*",
             "dynamodb:DeleteItem",
-            "dynamodb:Scan",
-            "cognito-idp:DescribeUserPool",
-            "cognito-idp:GetUser",
-            "cognito-idp:ListUsers",
+            "ssm:PutParameter",
+            "ssm:GetParameter",
             "cognito-idp:AdminCreateUser",
+            "cognito-idp:AdminSetUserPassword",
             "cognito-idp:AdminInitiateAuth",
-            "cognito-idp:GetIdentityProviderByIdentifier",
-            "cognito-idp:ListUserPools",
-            "cognito-idp:ListUserPoolClients",
-            "cognito-idp:AdminRespondToAuthChallenge",
-            "cognito-idp:AdminConfirmSignUp"
+            "kms:Decrypt"
           ],
           "Effect": "Allow",
           "Resource": "*"
@@ -30,40 +25,43 @@
       ],
       "Version": "2012-10-17"
     },
-    "resource_type": "iam_policy"
+    "resource_type": "iam_policy",
+    "tags": {}
   },
-  "${booking_userpool}": {
+  "simple-booking-userpool": {
     "resource_type": "cognito_idp",
     "password_policy": {
-      "minimum_length": 12,
+      "minimum_length": 8,
       "require_uppercase": true,
       "require_symbols": true,
       "require_lowercase": true,
       "require_numbers": true
     },
-    "auto_verified_attributes": [],
+    "auto_verified_attributes": [
+      "email"
+    ],
     "sms_configuration": {},
-    "username_attributes": [],
+    "username_attributes": [
+      "email"
+    ],
     "custom_attributes": [],
-    "tags": {},
     "client": {
-      "client_name": "client-app",
+      "client_name": "booking-app-client",
       "generate_secret": false,
       "explicit_auth_flows": [
-        "ALLOW_ADMIN_USER_PASSWORD_AUTH",
-        "ALLOW_CUSTOM_AUTH",
-        "ALLOW_USER_SRP_AUTH",
+        "ALLOW_USER_PASSWORD_AUTH",
         "ALLOW_REFRESH_TOKEN_AUTH"
       ]
-    }
+    },
+    "tags": {}
   },
   "task11_api": {
     "resource_type": "api_gateway",
     "deploy_stage": "api",
     "dependencies": [],
     "resources": {
-      "/signin": {
-        "enable_cors": true,
+      "/signup": {
+        "enable_cors": false,
         "POST": {
           "authorization_type": "NONE",
           "integration_type": "lambda",
@@ -73,12 +71,11 @@
           "integration_request_body_template": {},
           "responses": [],
           "integration_responses": [],
-          "default_error_pattern": true,
-          "enable_proxy": true
+          "default_error_pattern": true
         }
       },
-      "/signup": {
-        "enable_cors": true,
+      "/signin": {
+        "enable_cors": false,
         "POST": {
           "authorization_type": "NONE",
           "integration_type": "lambda",
@@ -88,14 +85,13 @@
           "integration_request_body_template": {},
           "responses": [],
           "integration_responses": [],
-          "default_error_pattern": true,
-          "enable_proxy": true
+          "default_error_pattern": true
         }
       },
       "/tables": {
-        "enable_cors": true,
+        "enable_cors": false,
         "GET": {
-          "authorization_type": "authorizer",
+          "authorization_type": "CognitoAuthorizer",
           "integration_type": "lambda",
           "lambda_name": "api_handler",
           "api_key_required": false,
@@ -103,11 +99,10 @@
           "integration_request_body_template": {},
           "responses": [],
           "integration_responses": [],
-          "default_error_pattern": true,
-          "enable_proxy": true
+          "default_error_pattern": true
         },
         "POST": {
-          "authorization_type": "authorizer",
+          "authorization_type": "CognitoAuthorizer",
           "integration_type": "lambda",
           "lambda_name": "api_handler",
           "api_key_required": false,
@@ -115,14 +110,13 @@
           "integration_request_body_template": {},
           "responses": [],
           "integration_responses": [],
-          "default_error_pattern": true,
-          "enable_proxy": true
+          "default_error_pattern": true
         }
       },
       "/tables/{tableId}": {
-        "enable_cors": true,
+        "enable_cors": false,
         "GET": {
-          "authorization_type": "authorizer",
+          "authorization_type": "CognitoAuthorizer",
           "integration_type": "lambda",
           "lambda_name": "api_handler",
           "api_key_required": false,
@@ -130,14 +124,13 @@
           "integration_request_body_template": {},
           "responses": [],
           "integration_responses": [],
-          "default_error_pattern": true,
-          "enable_proxy": true
+          "default_error_pattern": true
         }
       },
       "/reservations": {
-        "enable_cors": true,
+        "enable_cors": false,
         "GET": {
-          "authorization_type": "authorizer",
+          "authorization_type": "CognitoAuthorizer",
           "integration_type": "lambda",
           "lambda_name": "api_handler",
           "api_key_required": false,
@@ -145,11 +138,10 @@
           "integration_request_body_template": {},
           "responses": [],
           "integration_responses": [],
-          "default_error_pattern": true,
-          "enable_proxy": true
+          "default_error_pattern": true
         },
         "POST": {
-          "authorization_type": "authorizer",
+          "authorization_type": "CognitoAuthorizer",
           "integration_type": "lambda",
           "lambda_name": "api_handler",
           "api_key_required": false,
@@ -157,24 +149,13 @@
           "integration_request_body_template": {},
           "responses": [],
           "integration_responses": [],
-          "default_error_pattern": true,
-          "enable_proxy": true
+          "default_error_pattern": true
         }
       }
     },
     "tags": {},
     "authorizers": {
-      "authorizer": {
-        "client": {
-          "client_name": "client-app",
-          "generate_secret": false,
-          "explicit_auth_flows": [
-            "ALLOW_ADMIN_USER_PASSWORD_AUTH",
-            "ALLOW_CUSTOM_AUTH",
-            "ALLOW_USER_SRP_AUTH",
-            "ALLOW_REFRESH_TOKEN_AUTH"
-          ]
-        },
+      "CognitoAuthorizer": {
         "type": "COGNITO_USER_POOLS",
         "identity_source": "method.request.header.Authorization",
         "ttl": 300,
@@ -184,7 +165,7 @@
       }
     }
   },
-  "${tables_table}": {
+  "Tables": {
     "resource_type": "dynamodb_table",
     "hash_key_name": "id",
     "hash_key_type": "S",
@@ -194,9 +175,9 @@
     "autoscaling": [],
     "tags": {}
   },
-  "${reservations_table}": {
+  "Reservations": {
     "resource_type": "dynamodb_table",
-    "hash_key_name": "id",
+    "hash_key_name": "reservationId",
     "hash_key_type": "S",
     "read_capacity": 1,
     "write_capacity": 1,

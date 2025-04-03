@@ -10,24 +10,25 @@
   "lambda_path": "lambdas\\api_handler",
   "dependencies": [
     {
-      "resource_name": "${booking_userpool}",
-      "resource_type": "cognito_idp"
+      "resource_type": "cognito_idp",
+      "resource_name": "${booking_userpool}"
     }
   ],
   "event_sources": [],
   "env_variables": {
-    "USER_POOL_ID": {
-      "resource_name": "${booking_userpool}",
-      "resource_type": "cognito_idp",
-      "parameter": "id"
+    "cup_id": {
+  "resource_name": "${booking_userpool}",
+  "resource_type": "cognito_idp",
+  "parameter": "id"
     },
-    "CLIENT_ID": {
-      "resource_name": "${booking_userpool}",
-      "resource_type": "cognito_idp",
-      "parameter": "client_id"
+    "cup_client_id": {
+  "resource_name": "${booking_userpool}",
+  "resource_type": "cognito_idp",
+  "parameter": "client_id"
     },
     "TABLES_TABLE": "${tables_table}",
-    "RESERVATIONS_TABLE": "${reservations_table}"
+    "RESERVATIONS_TABLE": "${reservations_table}",
+    "BOOKING_USERPOOL": "${booking_userpool}"
   },
   "publish_version": true,
   "alias": "${lambdas_alias_name}",

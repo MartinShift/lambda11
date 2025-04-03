@@ -4,61 +4,79 @@ const uuid = require('uuid');
 const cognito = new AWS.CognitoIdentityServiceProvider();
 const dynamodb = new AWS.DynamoDB.DocumentClient();
 
-const USER_POOL_ID = process.env.USER_POOL_ID;
-const CLIENT_ID = process.env.CLIENT_ID;
+const USER_POOL_ID = process.env.cup_id;
+const CLIENT_ID = process.env.cup_client_id;
 const TABLES_TABLE = process.env.TABLES_TABLE;
 const RESERVATIONS_TABLE = process.env.RESERVATIONS_TABLE;
 
 exports.handler = async (event) => {
     console.log('Event:', JSON.stringify(event));
-    console.log('Environment variables:', JSON.stringify({
-        USER_POOL_ID,
-        CLIENT_ID,
-        TABLES_TABLE,
-        RESERVATIONS_TABLE
-    }));
+    console.log('Environment variables:', process.env);
 
     try {
         const route = `${event.resource} ${event.httpMethod}`;
         console.log('Route:', route);
 
+        let result;
         switch (route) {
             case '/signup POST':
-                return await signup(JSON.parse(event.body));
+                result = await signup(JSON.parse(event.body));
+                break;
             case '/signin POST':
-                return await signin(JSON.parse(event.body));
+                result = await signin(JSON.parse(event.body));
+                break;
             case '/tables GET':
-                return await getTables(event.headers);
+                result = await getTables(event.headers);
+                break;
             case '/tables POST':
-                return await createTable(JSON.parse(event.body), event.headers);
+                result = await createTable(JSON.parse(event.body), event.headers);
+                break;
             case '/tables/{tableId} GET':
-                return await getTable(event.pathParameters.tableId, event.headers);
+                result = await getTable(event.pathParameters.tableId, event.headers);
+                break;
             case '/reservations POST':
-                return await createReservation(JSON.parse(event.body), event.headers);
+                result = await createReservation(JSON.parse(event.body), event.headers);
+                break;
             case '/reservations GET':
-                return await getReservations(event.headers);
+                result = await getReservations(event.headers);
+                break;
             default:
-                console.log('Route not found:', route);
-                return formatResponse(404, { message: 'Not Found' });
+                result = { statusCode: 404, body: JSON.stringify({ message: 'Not Found' }) };
         }
+
+        return {
+            statusCode: result.statusCode,
+            headers: {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Credentials': true,
+                ...result.headers
+            },
+            body: result.body,
+            isBase64Encoded: false
+        };
     } catch (error) {
         console.error('Error:', error);
-        return formatResponse(500, { message: 'Internal Server Error', error: error.message });
+        return {
+            statusCode: 500,
+            headers: {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Credentials': true,
+            },
+            body: JSON.stringify({ message: 'Internal Server Error', error: error.message }),
+            isBase64Encoded: false
+        };
     }
 };
 
 async function signup(body) {
-    console.log('Signup body:', JSON.stringify(body));
     const { firstName, lastName, email, password } = body;
 
-    if (!isValidEmail(email)) {
-        return formatResponse(400, { message: 'Invalid email format' });
+    if (!isValidEmail(email) || !isValidPassword(password)) {
+        return { statusCode: 400, body: JSON.stringify({ message: 'Invalid email or password format' }) };
     }
 
-    if (!isValidPassword(password)) {
-        return formatResponse(400, { message: 'Invalid password format' });
-    }
-    
     const params = {
         UserPoolId: USER_POOL_ID,
         Username: email,
@@ -69,29 +87,25 @@ async function signup(body) {
         ],
         MessageAction: 'SUPPRESS'
     };
-    
+
     try {
         await cognito.adminCreateUser(params).promise();
-        
         await cognito.adminSetUserPassword({
             UserPoolId: USER_POOL_ID,
             Username: email,
             Password: password,
             Permanent: true
         }).promise();
-        
-        console.log('User created successfully');
-        return formatResponse(200, { message: 'User created successfully' });
+        return { statusCode: 200, body: JSON.stringify({ message: 'User created successfully' }) };
     } catch (error) {
         console.error('Error in signup:', error);
-        return formatResponse(400, { message: 'Error in signup', error: error.message });
+        return { statusCode: 400, body: JSON.stringify({ message: 'Error in signup', error: error.message }) };
     }
 }
 
 async function signin(body) {
-    console.log('Signin body:', JSON.stringify(body));
     const { email, password } = body;
-    
+
     const params = {
         AuthFlow: 'USER_PASSWORD_AUTH',
         ClientId: CLIENT_ID,
@@ -100,141 +114,115 @@ async function signin(body) {
             PASSWORD: password
         }
     };
-    
+
     try {
         const result = await cognito.initiateAuth(params).promise();
-        console.log('Signin successful');
-        return formatResponse(200, { idToken: result.AuthenticationResult.IdToken });
+        return { statusCode: 200, body: JSON.stringify({ idToken: result.AuthenticationResult.IdToken }) };
     } catch (error) {
         console.error('Error in signin:', error);
-        return formatResponse(400, { message: 'Error in signin', error: error.message });
+        return { statusCode: 400, body: JSON.stringify({ message: 'Error in signin', error: error.message }) };
     }
 }
 
 async function getTables(headers) {
-    console.log('Getting tables');
     if (!verifyToken(headers)) {
-        return formatResponse(401, { message: 'Unauthorized' });
+        return { statusCode: 401, body: JSON.stringify({ message: 'Unauthorized' }) };
     }
-    
+
     try {
         const result = await dynamodb.scan({ TableName: TABLES_TABLE }).promise();
-        console.log('Tables retrieved:', JSON.stringify(result.Items));
-        return formatResponse(200, { tables: result.Items });
+        return { statusCode: 200, body: JSON.stringify({ tables: result.Items }) };
     } catch (error) {
         console.error('Error getting tables:', error);
-        return formatResponse(500, { message: 'Error getting tables', error: error.message });
+        return { statusCode: 500, body: JSON.stringify({ message: 'Error getting tables', error: error.message }) };
     }
 }
 
 async function createTable(body, headers) {
-    console.log('Creating table:', JSON.stringify(body));
     if (!verifyToken(headers)) {
-        return formatResponse(401, { message: 'Unauthorized' });
+        return { statusCode: 401, body: JSON.stringify({ message: 'Unauthorized' }) };
     }
-    
-    const params = {
-        TableName: TABLES_TABLE,
-        Item: {
-            id: body.id,
-            number: body.number,
-            places: body.places,
-            isVip: body.isVip,
-            minOrder: body.minOrder || 0
-        }
+
+    const tableItem = {
+        id: uuid.v4(),
+        number: body.number,
+        places: body.places,
+        isVip: body.isVip,
+        minOrder: body.minOrder || 0
     };
-    
+
     try {
-        await dynamodb.put(params).promise();
-        console.log('Table created successfully');
-        return formatResponse(200, { id: body.id });
+        await dynamodb.put({ TableName: TABLES_TABLE, Item: tableItem }).promise();
+        return { statusCode: 200, body: JSON.stringify({ id: tableItem.id }) };
     } catch (error) {
         console.error('Error creating table:', error);
-        return formatResponse(500, { message: 'Error creating table', error: error.message });
+        return { statusCode: 500, body: JSON.stringify({ message: 'Error creating table', error: error.message }) };
     }
 }
 
 async function getTable(tableId, headers) {
-    console.log('Getting table:', tableId);
     if (!verifyToken(headers)) {
-        return formatResponse(401, { message: 'Unauthorized' });
+        return { statusCode: 401, body: JSON.stringify({ message: 'Unauthorized' }) };
     }
-    
-    const params = {
-        TableName: TABLES_TABLE,
-        Key: { id: parseInt(tableId) }
-    };
-    
+
     try {
-        const result = await dynamodb.get(params).promise();
-        console.log('Table retrieved:', JSON.stringify(result.Item));
+        const result = await dynamodb.get({ TableName: TABLES_TABLE, Key: { id: tableId } }).promise();
         if (result.Item) {
-            return formatResponse(200, result.Item);
+            return { statusCode: 200, body: JSON.stringify(result.Item) };
         } else {
-            return formatResponse(404, { message: 'Table not found' });
+            return { statusCode: 404, body: JSON.stringify({ message: 'Table not found' }) };
         }
     } catch (error) {
         console.error('Error getting table:', error);
-        return formatResponse(500, { message: 'Error getting table', error: error.message });
+        return { statusCode: 500, body: JSON.stringify({ message: 'Error getting table', error: error.message }) };
     }
 }
 
 async function createReservation(body, headers) {
-    console.log('Creating reservation:', JSON.stringify(body));
     if (!verifyToken(headers)) {
-        return formatResponse(401, { message: 'Unauthorized' });
+        return { statusCode: 401, body: JSON.stringify({ message: 'Unauthorized' }) };
     }
-    
-    const reservationId = uuid.v4();
-    const params = {
-        TableName: RESERVATIONS_TABLE,
-        Item: { 
-            reservationId,
-            tableNumber: body.tableNumber,
-            clientName: body.clientName,
-            phoneNumber: body.phoneNumber,
-            date: body.date,
-            slotTimeStart: body.slotTimeStart,
-            slotTimeEnd: body.slotTimeEnd
-        }
+
+    const reservationItem = {
+        id: uuid.v4(),
+        tableNumber: body.tableNumber,
+        clientName: body.clientName,
+        phoneNumber: body.phoneNumber,
+        date: body.date,
+        slotTimeStart: body.slotTimeStart,
+        slotTimeEnd: body.slotTimeEnd
     };
-    
+
     try {
-        await dynamodb.put(params).promise();
-        console.log('Reservation created successfully');
-        return formatResponse(200, { reservationId });
+        await dynamodb.put({ TableName: RESERVATIONS_TABLE, Item: reservationItem }).promise();
+        return { statusCode: 200, body: JSON.stringify({ reservationId: reservationItem.id }) };
     } catch (error) {
         console.error('Error creating reservation:', error);
-        return formatResponse(500, { message: 'Error creating reservation', error: error.message });
+        return { statusCode: 500, body: JSON.stringify({ message: 'Error creating reservation', error: error.message }) };
     }
 }
 
 async function getReservations(headers) {
-    console.log('Getting reservations');
     if (!verifyToken(headers)) {
-        return formatResponse(401, { message: 'Unauthorized' });
+        return { statusCode: 401, body: JSON.stringify({ message: 'Unauthorized' }) };
     }
-    
+
     try {
         const result = await dynamodb.scan({ TableName: RESERVATIONS_TABLE }).promise();
-        console.log('Reservations retrieved:', JSON.stringify(result.Items));
-        return formatResponse(200, { reservations: result.Items });
+        return { statusCode: 200, body: JSON.stringify({ reservations: result.Items }) };
     } catch (error) {
         console.error('Error getting reservations:', error);
-        return formatResponse(500, { message: 'Error getting reservations', error: error.message });
+        return { statusCode: 500, body: JSON.stringify({ message: 'Error getting reservations', error: error.message }) };
     }
 }
 
 function verifyToken(headers) {
-    console.log('Verifying token');
     const token = headers.Authorization;
     if (!token) {
         console.error('No token provided');
         return false;
     }
     // In a real application, you would verify the token here
-    // For now, we'll just check if it exists
-    console.log('Token verified');
     return true;
 }
 
@@ -244,19 +232,6 @@ function isValidEmail(email) {
 }
 
 function isValidPassword(password) {
-    // At least 12 characters long, contains alphanumeric and special characters
     const passwordRegex = /^(?=.*[a-zA-Z])(?=.*\d)(?=.*[$%^*\-_])[A-Za-z\d$%^*\-_]{12,}$/;
     return passwordRegex.test(password);
-}
-
-function formatResponse(statusCode, body) {
-    return {
-        statusCode: statusCode,
-        headers: {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Credentials': true,
-        },
-        body: JSON.stringify(body)
-    };
 }

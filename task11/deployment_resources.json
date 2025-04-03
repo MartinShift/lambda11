@@ -12,12 +12,17 @@
             "dynamodb:PutItem",
             "dynamodb:Batch*",
             "dynamodb:DeleteItem",
-            "ssm:PutParameter",
-            "ssm:GetParameter",
+            "dynamodb:Scan",
+            "cognito-idp:DescribeUserPool",
+            "cognito-idp:GetUser",
+            "cognito-idp:ListUsers",
             "cognito-idp:AdminCreateUser",
-            "cognito-idp:AdminSetUserPassword",
             "cognito-idp:AdminInitiateAuth",
-            "kms:Decrypt"
+            "cognito-idp:GetIdentityProviderByIdentifier",
+            "cognito-idp:ListUserPools",
+            "cognito-idp:ListUserPoolClients",
+            "cognito-idp:AdminRespondToAuthChallenge",
+            "cognito-idp:AdminConfirmSignUp"
           ],
           "Effect": "Allow",
           "Resource": "*"
@@ -25,33 +30,45 @@
       ],
       "Version": "2012-10-17"
     },
-    "resource_type": "iam_policy",
+    "resource_type": "iam_policy"
+  },
+  "${booking_userpool}": {
+    "resource_type": "cognito_idp",
+    "password_policy": {
+      "minimum_length": 8,
+      "require_uppercase": true,
+      "require_symbols": true,
+      "require_lowercase": true,
+      "require_numbers": true
+    },
+    "auto_verified_attributes": [],
+    "sms_configuration": {},
+    "username_attributes": [],
+    "custom_attributes": [],
+    "client": {
+      "client_name": "client-app",
+      "generate_secret": false,
+      "explicit_auth_flows": [
+        "ALLOW_ADMIN_USER_PASSWORD_AUTH",
+        "ALLOW_CUSTOM_AUTH",
+        "ALLOW_USER_SRP_AUTH",
+        "ALLOW_REFRESH_TOKEN_AUTH"
+      ]
+    },
     "tags": {}
   },
-  "simple-booking-userpool": {
-  "resource_type": "cognito_idp",
-  "client": {
-    "client_name": "client-app",
-    "generate_secret": false,
-    "explicit_auth_flows": [
-      "ALLOW_ADMIN_USER_PASSWORD_AUTH",
-      "ALLOW_CUSTOM_AUTH",
-      "ALLOW_USER_SRP_AUTH",
-      "ALLOW_REFRESH_TOKEN_AUTH"
-    ]
-  }
-},
   "task11_api": {
     "resource_type": "api_gateway",
     "deploy_stage": "api",
     "dependencies": [],
     "resources": {
-      "/signup": {
-        "enable_cors": false,
+      "/signin": {
+        "enable_cors": true,
         "POST": {
           "authorization_type": "NONE",
           "integration_type": "lambda",
           "lambda_name": "api_handler",
+          "enable_proxy": true,
           "api_key_required": false,
           "method_request_parameters": {},
           "integration_request_body_template": {},
@@ -60,13 +77,14 @@
           "default_error_pattern": true
         }
       },
-      "/signin": {
-        "enable_cors": false,
+      "/signup": {
+        "enable_cors": true,
         "POST": {
           "authorization_type": "NONE",
           "integration_type": "lambda",
           "lambda_name": "api_handler",
           "api_key_required": false,
+          "enable_proxy": true,
           "method_request_parameters": {},
           "integration_request_body_template": {},
           "responses": [],
@@ -75,12 +93,13 @@
         }
       },
       "/tables": {
-        "enable_cors": false,
+        "enable_cors": true,
         "GET": {
-          "authorization_type": "CognitoAuthorizer",
+          "authorization_type": "authorizer",
           "integration_type": "lambda",
           "lambda_name": "api_handler",
           "api_key_required": false,
+          "enable_proxy": true,
           "method_request_parameters": {},
           "integration_request_body_template": {},
           "responses": [],
@@ -88,10 +107,11 @@
           "default_error_pattern": true
         },
         "POST": {
-          "authorization_type": "CognitoAuthorizer",
+          "authorization_type": "authorizer",
           "integration_type": "lambda",
           "lambda_name": "api_handler",
           "api_key_required": false,
+          "enable_proxy": true,
           "method_request_parameters": {},
           "integration_request_body_template": {},
           "responses": [],
@@ -100,12 +120,13 @@
         }
       },
       "/tables/{tableId}": {
-        "enable_cors": false,
+        "enable_cors": true,
         "GET": {
-          "authorization_type": "CognitoAuthorizer",
+          "authorization_type": "authorizer",
           "integration_type": "lambda",
           "lambda_name": "api_handler",
           "api_key_required": false,
+          "enable_proxy": true,
           "method_request_parameters": {},
           "integration_request_body_template": {},
           "responses": [],
@@ -114,12 +135,13 @@
         }
       },
       "/reservations": {
-        "enable_cors": false,
+        "enable_cors": true,
         "GET": {
-          "authorization_type": "CognitoAuthorizer",
+          "authorization_type": "authorizer",
           "integration_type": "lambda",
           "lambda_name": "api_handler",
           "api_key_required": false,
+          "enable_proxy": true,
           "method_request_parameters": {},
           "integration_request_body_template": {},
           "responses": [],
@@ -127,10 +149,11 @@
           "default_error_pattern": true
         },
         "POST": {
-          "authorization_type": "CognitoAuthorizer",
+          "authorization_type": "authorizer",
           "integration_type": "lambda",
           "lambda_name": "api_handler",
           "api_key_required": false,
+          "enable_proxy": true,
           "method_request_parameters": {},
           "integration_request_body_template": {},
           "responses": [],
@@ -141,7 +164,7 @@
     },
     "tags": {},
     "authorizers": {
-      "CognitoAuthorizer": {
+      "authorizer": {
         "type": "COGNITO_USER_POOLS",
         "identity_source": "method.request.header.Authorization",
         "ttl": 300,
@@ -151,7 +174,7 @@
       }
     }
   },
-  "Tables": {
+  "${tables_table}": {
     "resource_type": "dynamodb_table",
     "hash_key_name": "id",
     "hash_key_type": "S",
@@ -161,7 +184,7 @@
     "autoscaling": [],
     "tags": {}
   },
-  "Reservations": {
+  "${reservations_table}": {
     "resource_type": "dynamodb_table",
     "hash_key_name": "id",
     "hash_key_type": "S",

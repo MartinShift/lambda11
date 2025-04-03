@@ -253,12 +253,8 @@ async function createReservation(body, headers) {
     } else {
         // If tableNumber is provided, check if it exists
         try {
-            const tableCommand = new GetCommand({
-                TableName: TABLES_TABLE,
-                Key: { id: tableNumber }
-            });
-            const tableResult = await dynamodb.send(tableCommand);
-            if (!tableResult.Item) {
+            const tableExists = await checkTableExists(tableNumber);
+            if (!tableExists) {
                 return formatResponse(400, { message: 'Specified table does not exist' });
             }
         } catch (error) {
@@ -311,13 +307,24 @@ async function findFreeTable(date, slotTimeStart, slotTimeEnd) {
 
     // Check each table for availability
     for (const table of tables) {
-        const isAvailable = await checkTableAvailability(table.id, date, slotTimeStart, slotTimeEnd);
+        const isAvailable = await checkTableAvailability(table.number, date, slotTimeStart, slotTimeEnd);
         if (isAvailable) {
-            return table.id;
+            return table.number;
         }
     }
 
     return null; // No free table found
+}
+
+async function checkTableExists(tableNumber) {
+    const scanCommand = new ScanCommand({
+        TableName: TABLES_TABLE,
+        FilterExpression: '#num = :num',
+        ExpressionAttributeNames: { '#num': 'number' },
+        ExpressionAttributeValues: { ':num': tableNumber }
+    });
+    const result = await dynamodb.send(scanCommand);
+    return result.Items && result.Items.length > 0;
 }
 
 async function checkTableAvailability(tableNumber, date, slotTimeStart, slotTimeEnd) {

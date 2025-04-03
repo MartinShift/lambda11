@@ -193,12 +193,12 @@ async function createTable(body, headers) {
     }
 
     try {
-        const id = body.id || await getNextId(TABLES_TABLE);
+        const id = body.id;
         const tableItem = {
             id: id,
-            number: body.number,
+            number: body.number || id,
             places: body.places,
-            isVip: body.isVip,
+            isVip: body.isVip || false,
             minOrder: body.minOrder || 0
         };
 
@@ -268,7 +268,7 @@ async function createReservation(body, headers) {
                 '#date': 'date'
             },
             ExpressionAttributeValues: {
-                ':tableNumber': tableNumber,
+                ':tableNumber': Number(tableNumber),
                 ':date': date,
                 ':start': slotTimeStart,
                 ':end': slotTimeEnd
@@ -283,9 +283,10 @@ async function createReservation(body, headers) {
         return formatResponse(500, { message: 'Error checking reservation overlap', error: error.message });
     }
 
+    const reservationId = uuidv4();
     const reservationItem = {
-        id: uuidv4(),
-        tableNumber,
+        id: reservationId,
+        tableNumber: Number(tableNumber),
         clientName,
         phoneNumber,
         date,
@@ -296,7 +297,7 @@ async function createReservation(body, headers) {
     try {
         const command = new PutCommand({ TableName: RESERVATIONS_TABLE, Item: reservationItem });
         await dynamodb.send(command);
-        return formatResponse(200, { reservationId: reservationItem.id });
+        return formatResponse(200, { reservationId: reservationId });
     } catch (error) {
         console.error('Error creating reservation:', error);
         return formatResponse(500, { message: 'Error creating reservation', error: error.message });

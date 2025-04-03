@@ -8,11 +8,24 @@
   "memory": 128,
   "timeout": 100,
   "lambda_path": "lambdas\\api_handler",
-  "dependencies": [],
+  "dependencies": [
+    {
+      "resource_name": "${booking_userpool}",
+      "resource_type": "cognito_idp"
+    }
+  ],
   "event_sources": [],
   "env_variables": {
-    "USER_POOL_ID": "${booking_userpool}",
-    "CLIENT_ID": "${booking_userpool_client_id}",
+    "USER_POOL_ID": {
+      "resource_name": "${booking_userpool}",
+      "resource_type": "cognito_idp",
+      "parameter": "id"
+    },
+    "CLIENT_ID": {
+      "resource_name": "${booking_userpool}",
+      "resource_type": "cognito_idp",
+      "parameter": "client_id"
+    },
     "TABLES_TABLE": "${tables_table}",
     "RESERVATIONS_TABLE": "${reservations_table}"
   },

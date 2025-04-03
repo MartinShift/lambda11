@@ -18,40 +18,46 @@ exports.handler = async (event) => {
         RESERVATIONS_TABLE
     }));
 
-    const { resource, httpMethod, body, pathParameters, headers } = event;
-    
     try {
-        const route = `${resource} ${httpMethod}`;
+        const route = `${event.resource} ${event.httpMethod}`;
         console.log('Route:', route);
 
         switch (route) {
             case '/signup POST':
-                return await signup(JSON.parse(body));
+                return await signup(JSON.parse(event.body));
             case '/signin POST':
-                return await signin(JSON.parse(body));
+                return await signin(JSON.parse(event.body));
             case '/tables GET':
-                return await getTables(headers);
+                return await getTables(event.headers);
             case '/tables POST':
-                return await createTable(JSON.parse(body), headers);
+                return await createTable(JSON.parse(event.body), event.headers);
             case '/tables/{tableId} GET':
-                return await getTable(pathParameters.tableId, headers);
+                return await getTable(event.pathParameters.tableId, event.headers);
             case '/reservations POST':
-                return await createReservation(JSON.parse(body), headers);
+                return await createReservation(JSON.parse(event.body), event.headers);
             case '/reservations GET':
-                return await getReservations(headers);
+                return await getReservations(event.headers);
             default:
                 console.log('Route not found:', route);
-                return { statusCode: 404, body: JSON.stringify({ message: 'Not Found' }) };
+                return formatResponse(404, { message: 'Not Found' });
         }
     } catch (error) {
         console.error('Error:', error);
-        return { statusCode: 500, body: JSON.stringify({ message: 'Internal Server Error', error: error.message }) };
+        return formatResponse(500, { message: 'Internal Server Error', error: error.message });
     }
 };
 
 async function signup(body) {
     console.log('Signup body:', JSON.stringify(body));
     const { firstName, lastName, email, password } = body;
+
+    if (!isValidEmail(email)) {
+        return formatResponse(400, { message: 'Invalid email format' });
+    }
+
+    if (!isValidPassword(password)) {
+        return formatResponse(400, { message: 'Invalid password format' });
+    }
     
     const params = {
         UserPoolId: USER_POOL_ID,
@@ -75,10 +81,10 @@ async function signup(body) {
         }).promise();
         
         console.log('User created successfully');
-        return { statusCode: 200, body: JSON.stringify({ message: 'User created successfully' }) };
+        return formatResponse(200, { message: 'User created successfully' });
     } catch (error) {
         console.error('Error in signup:', error);
-        return { statusCode: 400, body: JSON.stringify({ message: 'Error in signup', error: error.message }) };
+        return formatResponse(400, { message: 'Error in signup', error: error.message });
     }
 }
 
@@ -98,52 +104,61 @@ async function signin(body) {
     try {
         const result = await cognito.initiateAuth(params).promise();
         console.log('Signin successful');
-        return { 
-            statusCode: 200, 
-            body: JSON.stringify({ idToken: result.AuthenticationResult.IdToken }) 
-        };
+        return formatResponse(200, { idToken: result.AuthenticationResult.IdToken });
     } catch (error) {
         console.error('Error in signin:', error);
-        return { statusCode: 400, body: JSON.stringify({ message: 'Error in signin', error: error.message }) };
+        return formatResponse(400, { message: 'Error in signin', error: error.message });
     }
 }
 
 async function getTables(headers) {
     console.log('Getting tables');
-    verifyToken(headers);
+    if (!verifyToken(headers)) {
+        return formatResponse(401, { message: 'Unauthorized' });
+    }
     
     try {
         const result = await dynamodb.scan({ TableName: TABLES_TABLE }).promise();
         console.log('Tables retrieved:', JSON.stringify(result.Items));
-        return { statusCode: 200, body: JSON.stringify({ tables: result.Items }) };
+        return formatResponse(200, { tables: result.Items });
     } catch (error) {
         console.error('Error getting tables:', error);
-        return { statusCode: 500, body: JSON.stringify({ message: 'Error getting tables', error: error.message }) };
+        return formatResponse(500, { message: 'Error getting tables', error: error.message });
     }
 }
 
 async function createTable(body, headers) {
     console.log('Creating table:', JSON.stringify(body));
-    verifyToken(headers);
+    if (!verifyToken(headers)) {
+        return formatResponse(401, { message: 'Unauthorized' });
+    }
     
     const params = {
         TableName: TABLES_TABLE,
-        Item: body
+        Item: {
+            id: body.id,
+            number: body.number,
+            places: body.places,
+            isVip: body.isVip,
+            minOrder: body.minOrder || 0
+        }
     };
     
     try {
         await dynamodb.put(params).promise();
         console.log('Table created successfully');
-        return { statusCode: 200, body: JSON.stringify({ id: body.id }) };
+        return formatResponse(200, { id: body.id });
     } catch (error) {
         console.error('Error creating table:', error);
-        return { statusCode: 500, body: JSON.stringify({ message: 'Error creating table', error: error.message }) };
+        return formatResponse(500, { message: 'Error creating table', error: error.message });
     }
 }
 
 async function getTable(tableId, headers) {
     console.log('Getting table:', tableId);
-    verifyToken(headers);
+    if (!verifyToken(headers)) {
+        return formatResponse(401, { message: 'Unauthorized' });
+    }
     
     const params = {
         TableName: TABLES_TABLE,
@@ -153,44 +168,60 @@ async function getTable(tableId, headers) {
     try {
         const result = await dynamodb.get(params).promise();
         console.log('Table retrieved:', JSON.stringify(result.Item));
-        return { statusCode: 200, body: JSON.stringify(result.Item) };
+        if (result.Item) {
+            return formatResponse(200, result.Item);
+        } else {
+            return formatResponse(404, { message: 'Table not found' });
+        }
     } catch (error) {
         console.error('Error getting table:', error);
-        return { statusCode: 500, body: JSON.stringify({ message: 'Error getting table', error: error.message }) };
+        return formatResponse(500, { message: 'Error getting table', error: error.message });
     }
 }
 
 async function createReservation(body, headers) {
     console.log('Creating reservation:', JSON.stringify(body));
-    verifyToken(headers);
+    if (!verifyToken(headers)) {
+        return formatResponse(401, { message: 'Unauthorized' });
+    }
     
     const reservationId = uuid.v4();
     const params = {
         TableName: RESERVATIONS_TABLE,
-        Item: { ...body, reservationId }
+        Item: { 
+            reservationId,
+            tableNumber: body.tableNumber,
+            clientName: body.clientName,
+            phoneNumber: body.phoneNumber,
+            date: body.date,
+            slotTimeStart: body.slotTimeStart,
+            slotTimeEnd: body.slotTimeEnd
+        }
     };
     
     try {
         await dynamodb.put(params).promise();
         console.log('Reservation created successfully');
-        return { statusCode: 200, body: JSON.stringify({ reservationId }) };
+        return formatResponse(200, { reservationId });
     } catch (error) {
         console.error('Error creating reservation:', error);
-        return { statusCode: 500, body: JSON.stringify({ message: 'Error creating reservation', error: error.message }) };
+        return formatResponse(500, { message: 'Error creating reservation', error: error.message });
     }
 }
 
 async function getReservations(headers) {
     console.log('Getting reservations');
-    verifyToken(headers);
+    if (!verifyToken(headers)) {
+        return formatResponse(401, { message: 'Unauthorized' });
+    }
     
     try {
         const result = await dynamodb.scan({ TableName: RESERVATIONS_TABLE }).promise();
         console.log('Reservations retrieved:', JSON.stringify(result.Items));
-        return { statusCode: 200, body: JSON.stringify({ reservations: result.Items }) };
+        return formatResponse(200, { reservations: result.Items });
     } catch (error) {
         console.error('Error getting reservations:', error);
-        return { statusCode: 500, body: JSON.stringify({ message: 'Error getting reservations', error: error.message }) };
+        return formatResponse(500, { message: 'Error getting reservations', error: error.message });
     }
 }
 
@@ -199,8 +230,33 @@ function verifyToken(headers) {
     const token = headers.Authorization;
     if (!token) {
         console.error('No token provided');
-        throw new Error('No token provided');
+        return false;
     }
     // In a real application, you would verify the token here
+    // For now, we'll just check if it exists
     console.log('Token verified');
+    return true;
+}
+
+function isValidEmail(email) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+}
+
+function isValidPassword(password) {
+    // At least 12 characters long, contains alphanumeric and special characters
+    const passwordRegex = /^(?=.*[a-zA-Z])(?=.*\d)(?=.*[$%^*\-_])[A-Za-z\d$%^*\-_]{12,}$/;
+    return passwordRegex.test(password);
+}
+
+function formatResponse(statusCode, body) {
+    return {
+        statusCode: statusCode,
+        headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Credentials': true,
+        },
+        body: JSON.stringify(body)
+    };
 }
